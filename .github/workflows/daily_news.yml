@@ -2,7 +2,11 @@ name: Mensageiro Diário
 
 on:
   schedule:
+<<<<<<< HEAD
     - cron: '27 13 * * *'
+=======
+    - cron: '0 13 * * *' 
+>>>>>>> 2e6ece45b95a4e15e16aa0642b03f0cfb7ffe48a
   workflow_dispatch: # Permite rodar manualmente pelo botão no GitHub
 
 jobs:
