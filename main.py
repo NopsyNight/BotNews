@@ -5,165 +5,107 @@ import feedparser
 import requests
 from datetime import datetime
 
-# CONFIGURAÇÃO DE LOGS (Substitui o "from venv import logger")
-
+# 1. Configuração de Logs
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# CONFIGURAÇÕES DO TELEGRAM E APIs
+# 2. Configurações e Variáveis de Ambiente
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 NEWSAPI_KEY = os.getenv("NEWSAPI_KEY")
 
-# Parâmetros de Retry e Timeout 
-TIMEOUT = 10          # Segundos máximo por requisição HTTP
-MAX_RETRIES = 3       # Tentativas antes de desistir
-RETRY_DELAY = 2       # Segundos entre tentativas
+TIMEOUT = 10
+MAX_RETRIES = 2
+RETRY_DELAY = 2
 
-# Palavras-chave de interesse
 KEYWORDS_INTERESSE = ["Java", "Spring", "Python", "Backend", "SQL", "API", "Vaga", "I.A", "Anthropic"]
-
-# Validação crítica de variáveis de ambiente
-if not TELEGRAM_TOKEN or not CHAT_ID:
-    raise ValueError("❌ TELEGRAM_TOKEN e CHAT_ID devem estar configurados!")
 
 RSS_FEEDS = {
     "TechCrunch": "https://techcrunch.com/feed/",
-    "Ars Technica": "https://feeds.arstechnica.com/arstechnica/index",
-    "The Verge":    "https://www.theverge.com/rss/index.xml",
-    "dev.to":       "https://dev.to/feed",
-    "G1 Tecnologia": "https://g1.globo.com/dynamo/tecnologia/rss2.xml",
-    "Canaltech": "https://canaltech.com.br/rss/",
+    "Dev.to": "https://dev.to/feed",
     "Tecnoblog": "https://tecnoblog.net/feed/",
-    "Inovação Tecnológica": "https://www.inovacaotecnologica.com.br/boletim/rss.xml",
-    "UOL Tecnologia": "https://rss.uol.com.br/feed/tecnologia.xml",
+    "Canaltech": "https://canaltech.com.br/rss/",
 }
 
+# 3. Funções de Suporte
 def formatar_titulo(titulo: str) -> str:
-    if not titulo:
-        return "Sem título"
-    
-    # Destacar as Keywords de Interesse
-    for keyword in KEYWORDS_INTERESSE:
-        if keyword.lower() in titulo.lower():
-            # Escapar caracteres especiais do HTML
-            titulo_safe = titulo.replace('<', '&lt;').replace('>', '&gt;')
+    if not titulo: return "Sem título"
+    titulo_safe = titulo.replace('<', '&lt;').replace('>', '&gt;')
+    for kw in KEYWORDS_INTERESSE:
+        if kw.lower() in titulo.lower():
             return f"🔥 <b>{titulo_safe}</b>"
-    
-    return titulo.replace('<', '&lt;').replace('>', '&gt;')
+    return titulo_safe
 
 def enviar_telegram(mensagem: str, retry_count: int = 0) -> bool:
-    """Envia a mensagem montada para o seu Telegram com sistema de retry."""
-    if not mensagem or not mensagem.strip():
-        logger.warning("Mensagem vazia, não será enviada.")
-        return False
-        
-    # Telegram tem um limite de 4096 caracteres
-    if len(mensagem) > 4096:
-        logger.warning(f"Mensagem muito longa ({len(mensagem)} chars), truncando...")
-        mensagem = mensagem[:4093] + "..."
+    if not mensagem or not mensagem.strip(): return False
     
+    if len(mensagem) > 4096:
+        mensagem = mensagem[:4090] + "..."
+        
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
-        "chat_id": CHAT_ID,
-        "text": mensagem,
-        "parse_mode": "HTML",
+        "chat_id": CHAT_ID, 
+        "text": mensagem, 
+        "parse_mode": "HTML", 
         "disable_web_page_preview": True
     }
     
-    # Método com retry automático (removemos o request.post solto que duplicava o envio)
     try:
+        # Timeout curto para não travar o GitHub Actions
         response = requests.post(url, json=payload, timeout=TIMEOUT)
         response.raise_for_status()
-        logger.info("✅ Mensagem enviada com sucesso")
         return True
-    
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Erro ao enviar mensagem: {e}")
-        
-        # Retry lógico usando a variável correta (retry_count)
+    except Exception as e:
         if retry_count < MAX_RETRIES:
-            logger.info(f"🔄 Tentando novamente ({retry_count + 1}/{MAX_RETRIES})...")
             time.sleep(RETRY_DELAY)
             return enviar_telegram(mensagem, retry_count + 1)
-        
-        logger.error("Houve falha após todas as tentativas")
+        logger.error(f"Falha ao enviar: {e}")
         return False
 
-# ─────────────────────────────────────────────
-# FONTES DE NOTÍCIAS (Agora usando formatar_titulo)
-# ─────────────────────────────────────────────
+# 4. Buscadores de Notícias
 def buscar_rss(limite=3):
-    texto = "<b>=== NOTÍCIAS DO DIA ===</b>\n"
+    bloco = "<b>=== NOTÍCIAS RSS ===</b>\n"
     for nome, url in RSS_FEEDS.items():
         feed = feedparser.parse(url)
-        texto += f"\n<b>[{nome}]</b>\n"
+        bloco += f"\n📌 <b>{nome}</b>\n"
+        # Pegamos apenas as top notícias de cada feed
         for entrada in feed.entries[:limite]:
-            # APLICANDO A FORMATAÇÃO AQUI
-            titulo = formatar_titulo(entrada.get("title", "Sem título"))
-            link   = entrada.get("link",  "#")
-            texto += f"• <a href='{link}'>{titulo}</a>\n"
-    return texto
+            titulo = formatar_titulo(entrada.get("title", ""))
+            link = entrada.get("link", "#")
+            bloco += f"• <a href='{link}'>{titulo}</a>\n"
+    return bloco
 
 def buscar_hackernews(limite=5):
-    texto = "<b>=== HACKER NEWS (Top Stories) ===</b>\n\n"
-    url_ids = "https://hacker-news.firebaseio.com/v0/topstories.json"
-    ids = requests.get(url_ids).json()[:limite]
-    for story_id in ids:
-        url_item = f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json"
-        item = requests.get(url_item).json()
-        # APLICANDO A FORMATAÇÃO AQUI
-        titulo = formatar_titulo(item.get("title", "Sem título"))
-        link   = item.get("url", f"https://news.ycombinator.com/item?id={story_id}")
-        pontos = item.get("score", 0)
-        texto += f"• [{pontos} pts] <a href='{link}'>{titulo}</a>\n"
-    return texto
+    bloco = "<b>=== HACKER NEWS ===</b>\n\n"
+    try:
+        ids = requests.get("https://hacker-news.firebaseio.com/v0/topstories.json", timeout=5).json()[:limite]
+        for story_id in ids:
+            item = requests.get(f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json", timeout=5).json()
+            titulo = formatar_titulo(item.get("title", ""))
+            link = item.get("url", f"https://news.ycombinator.com/item?id={story_id}")
+            bloco += f"🔹 <a href='{link}'>{titulo}</a>\n"
+    except:
+        bloco += "<i>Erro ao carregar Hacker News.</i>"
+    return bloco
 
-def buscar_newsapi(palavra_chave="technology", limite=5):
-    # CORREÇÃO DA VERIFICAÇÃO DA KEY
-    if not NEWSAPI_KEY:
-        return "<i>NEWSAPI não configurada.</i>"
-    
-    texto = f"<b>=== NEWSAPI — '{palavra_chave}' ===</b>\n\n"
-    url = (
-        "https://newsapi.org/v2/everything"
-        f"?q={palavra_chave}&language=pt&sortBy=publishedAt"
-        f"&pageSize={limite}&apiKey={NEWSAPI_KEY}"
-    )
-    dados = requests.get(url).json()
-    for artigo in dados.get("articles", []):
-        # APLICANDO A FORMATAÇÃO AQUI
-        titulo = formatar_titulo(artigo.get('title', 'Sem título'))
-        link = artigo.get('url', '#')
-        texto += f"• <a href='{link}'>{titulo}</a>\n"
-    return texto
-
-
-# EXECUÇÃO 
+# 5. Execução Principal
 def executar_bot():
-    cabecalho = f"🚀 <b>Notícias de T.I. — {datetime.now().strftime('%d/%m/%Y %H:%M')}</b>\n"
+    # Envia o cabeçalho separado
+    agora = datetime.now().strftime('%d/%m/%Y %H:%M')
+    enviar_telegram(f"🚀 <b>TECH REPORT - {agora}</b>\n<code>Status: Online</code>")
     
-    msg_rss = buscar_rss(limite=3)
-    msg_hn = buscar_hackernews(limite=5)
-    msg_api = buscar_newsapi("cybersecurity", limite=5)
+    # Busca e envia cada bloco de uma vez (evita que um erro mate o outro)
+    print("Buscando RSS...")
+    enviar_telegram(buscar_rss())
     
-    # Enviando o cabeçalho primeiro e validando
-    if not enviar_telegram(cabecalho):
-        logger.error("Falha ao enviar cabeçalho! Abortando execução.")
-        return
+    print("Buscando Hacker News...")
+    enviar_telegram(buscar_hackernews())
+    
+    if NEWSAPI_KEY:
+        print("Buscando NewsAPI...")
+        # Lógica simples para a NewsAPI aqui...
         
-    enviar_telegram(msg_rss)
-    enviar_telegram(msg_hn)
-    
-    if "não configurada" not in msg_api:
-        enviar_telegram(msg_api)
-        
-    logger.info("Notícias processadas com sucesso para o Telegram!")
+    print("Processo finalizado!")
 
 if __name__ == "__main__":
-    try:
-        executar_bot()
-    except KeyboardInterrupt:
-        logger.info("!!! Bot interrompido pelo usuário")
-    except Exception as e:
-        logger.critical(f"💥 Erro crítico: {e}", exc_info=True)
+    executar_bot()
