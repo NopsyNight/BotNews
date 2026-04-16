@@ -1,3 +1,4 @@
+import os
 import feedparser
 import requests
 from datetime import datetime
@@ -5,9 +6,9 @@ from datetime import datetime
 # ─────────────────────────────────────────────
 # CONFIGURAÇÕES DO TELEGRAM E APIs
 # ─────────────────────────────────────────────
-TELEGRAM_TOKEN = "8726194259:AAHjBF3YjxnyUAvyKzs4zmfOdumvX-5Fx3I"
-CHAT_ID = "6141114690"
-NEWSAPI_KEY = "1859a923a6be41e9ac56f6bb1bfabf4d"
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
+NEWSAPI_KEY = os.getenv("NEWSAPI_KEY")
 
 RSS_FEEDS = {
     "TechCrunch": "https://techcrunch.com/feed/",
@@ -66,7 +67,7 @@ def buscar_hackernews(limite=5):
 # 3. VIA NEWSAPI.ORG
 # ─────────────────────────────────────────────
 def buscar_newsapi(palavra_chave="technology", limite=5):
-    if NEWSAPI_KEY == "1859a923a6be41e9ac56f6bb1bfabf4d":
+    if NEWSAPI_KEY == os.getenv("NEWSAPI_KEY"):
         return "<i>NEWSAPI não configurada.</i>"
     
     texto = f"<b>=== NEWSAPI — '{palavra_chave}' ===</b>\n\n"
