@@ -40,7 +40,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "🚀 Bot de Notícias está Online na Render!"
+    return "🚀 Mensageiro está ativo!"
 
 def run_server():
     # A Render injeta a porta automaticamente na variável de ambiente PORT, ou usa 10000 como fallback
@@ -150,9 +150,7 @@ if __name__ == "__main__":
     # 1. Inicia o servidor Web em uma thread separada (para a Render não desligar a máquina)
     Thread(target=run_server).start()
     
-    # 2. Configura o relógio (Lembrando que o servidor usa UTC. 12:00 UTC = 09:00 Brasil)
-    # Ajuste o horário abaixo para o minuto desejado
-    horario_agendado = "12:00" 
+    horario_agendado = "18:46" 
     schedule.every().day.at(horario_agendado).do(tarefa_diaria)
     
     logger.info(f"Sistema iniciado! Servidor web rodando e bot agendado para {horario_agendado} (UTC).")
