@@ -85,12 +85,25 @@ def enviar_telegram(mensagem: str, retry_count: int = 0) -> bool:
 def buscar_rss(limite=3):
     bloco = "<b>=== NOTÍCIAS RSS ===</b>\n"
     for nome, url in RSS_FEEDS.items():
-        feed = feedparser.parse(url)
-        bloco += f"\n📌 <b>{nome}</b>\n"
-        for entrada in feed.entries[:limite]:
-            titulo = formatar_titulo(entrada.get("title", ""))
-            link = entrada.get("link", "#")
-            bloco += f"• <a href='{link}'>{titulo}</a>\n"
+        try:
+            # timeout de 10 segundos para não travar o bot se o site estiver lento
+            feed = feedparser.parse(url)
+            
+            if not feed.entries:
+                logger.warning(f"Feed vazio ou erro no link: {nome}")
+                continue
+                
+            bloco += f"\n📌 <b>{nome}</b>\n"
+            for entrada in feed.entries[:limite]:
+                # Usamos o .get() com fallback para evitar erros de campo inexistente
+                titulo_sujo = entrada.get("title", "Sem título")
+                # Limpeza rápida de tags HTML que podem quebrar o Telegram
+                titulo = formatar_titulo(titulo_sujo) 
+                link = entrada.get("link", "#")
+                bloco += f"• <a href='{link}'>{titulo}</a>\n"
+        except Exception as e:
+            logger.error(f"Erro ao processar feed {nome}: {e}")
+            continue # Pula para o próximo site se esse der erro
     return bloco
 
 def buscar_hackernews(limite=5):
@@ -129,7 +142,7 @@ def executar_bot():
     logger.info("Coletando notícias...")
     agora = datetime.now().strftime('%d/%m/%Y %H:%M')
     
-    enviar_telegram(f"🚀 <b>TECH REPORT - {agora}</b>\n<code>Status: Online via Render</code>")
+    enviar_telegram(f"🚀 <b> Notícias de T.I - {agora}</b>")
     enviar_telegram(buscar_rss())
     enviar_telegram(buscar_hackernews())
     
@@ -150,7 +163,7 @@ if __name__ == "__main__":
     # 1. Inicia o servidor Web em uma thread separada (para a Render não desligar a máquina)
     Thread(target=run_server).start()
     
-    horario_agendado = "18:46" 
+    horario_agendado = "19:05"  # Horário em UTC para o disparo diário (ajuste conforme necessário)
     schedule.every().day.at(horario_agendado).do(tarefa_diaria)
     
     logger.info(f"Sistema iniciado! Servidor web rodando e bot agendado para {horario_agendado} (UTC).")
