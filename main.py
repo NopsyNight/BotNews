@@ -29,7 +29,6 @@ if not TELEGRAM_TOKEN or not CHAT_ID_RAW:
     logger.critical("❌ TELEGRAM_TOKEN e CHAT_ID são obrigatórios! Configure as variáveis de ambiente.")
     exit(1)
 
-# FIX #6 — CHAT_ID como inteiro para maior compatibilidade com a API do Telegram
 try:
     CHAT_ID = int(CHAT_ID_RAW)
 except ValueError:
@@ -180,10 +179,6 @@ def buscar_hackernews(limite: int = 5) -> str:
 
 
 def buscar_newsapi(palavra_chave: str = "tecnologia", limite: int = 5) -> str:
-    """
-    Busca notícias via NewsAPI.org.
-    FIX #3 — palavra-chave padrão trocada para 'tecnologia' (PT-BR).
-    """
     if not NEWSAPI_KEY:
         logger.info("NEWSAPI_KEY não configurada, pulando esta fonte.")
         return ""
@@ -252,15 +247,11 @@ if __name__ == "__main__":
     # Inicia o servidor Flask em thread separada (mantém a Render ativa)
     Thread(target=run_server, daemon=True).start()
 
-    # FIX #8 — Lembrete: este horário é UTC. Pernambuco = UTC-3.
-    # Para receber às 08:00 no seu horário, use "11:00" aqui.
-    horario_agendado = "19:29"  
+    # Para receber às 09:00 no brasil, use "12:00" aqui.
+    horario_agendado = "12:00"  
     schedule.every().day.at(horario_agendado).do(tarefa_diaria)
 
     logger.info(f"✅ Sistema iniciado! Bot agendado para {horario_agendado} UTC (08:00 Brasília).")
-
-    # Descomente a linha abaixo para disparar imediatamente ao iniciar na Render:
-    # executar_bot()
 
     # Mantém o processo vivo checando o agendador a cada minuto
     while True:
